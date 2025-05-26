@@ -1,99 +1,57 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, TextInput, FlatList, Modal, ActivityIndicator, Alert } from 'react-native';
-import { auth, db } from '../../../firebase';
-import { doc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Image, TouchableOpacity, FlatList, Modal, TextInput, ActivityIndicator, ScrollView } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
-export default function ProfileScreen() {
-  const [userInfo, setUserInfo] = useState(null);
-  const [posts, setPosts] = useState([]);
-  const [loading, setLoading] = useState(true);
+const DUMMY_POSTS = [
+  { id: '1', image: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=400&q=80', title: 'Bãi biển', content: 'Check-in biển xanh' },
+  { id: '2', image: 'https://images.unsplash.com/photo-1465101046530-73398c7f28ca?auto=format&fit=crop&w=400&q=80', title: 'Núi', content: 'Leo núi cuối tuần' },
+  { id: '3', image: 'https://images.unsplash.com/photo-1519125323398-675f0ddb6308?auto=format&fit=crop&w=400&q=80', title: 'Cafe', content: 'Cà phê sáng chill' },
+  { id: '4', image: 'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=400&q=80', title: 'Đêm', content: 'Thành phố về đêm' },
+  { id: '5', image: 'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=400&q=80', title: 'Bạn bè', content: 'Đi chơi cùng bạn' },
+  { id: '6', image: 'https://images.unsplash.com/photo-1465101046530-73398c7f28ca?auto=format&fit=crop&w=400&q=80', title: 'Thể thao', content: 'Chạy bộ buổi sáng' },
+];
+
+const ProfileScreen = () => {
+  // Dummy user data
+  const [user, setUser] = useState({
+    name: 'Eytyxia Nguyễn',
+    username: '@EytyxiaNguyeen',
+    bio: 'Lover of code, coffee, and dogs.',
+    avatar: 'https://i.pravatar.cc/150?img=3',
+    followers: 120,
+    following: 180,
+    posts: DUMMY_POSTS.length,
+    email: 'john.doe@email.com',
+  });
+
+  const [posts, setPosts] = useState(DUMMY_POSTS);
   const [editModalVisible, setEditModalVisible] = useState(false);
-  const [editName, setEditName] = useState('');
-  const [editEmail, setEditEmail] = useState('');
+  const [editName, setEditName] = useState(user.name);
+  const [editBio, setEditBio] = useState(user.bio);
+  const [editEmail, setEditEmail] = useState(user.email);
   const [saving, setSaving] = useState(false);
 
-  const user = auth.currentUser;
-
-  useEffect(() => {
-    if (!user) return;
-    const fetchUserInfo = async () => {
-      setLoading(true);
-      try {
-        const userRef = doc(db, 'users', user.uid);
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists()) {
-          setUserInfo(userSnap.data());
-          setEditName(userSnap.data().name);
-          setEditEmail(userSnap.data().email);
-        }
-        // Fetch user's posts
-        let userPosts = [];
-        try {
-          const postsRef = collection(db, 'posts');
-          const q = query(postsRef, where('uid', '==', user.uid));
-          const querySnapshot = await getDocs(q);
-          querySnapshot.forEach((doc) => {
-            userPosts.push({ id: doc.id, ...doc.data() });
-          });
-        } catch (e) {
-          // ignore
-        }
-        // Nếu không có bài đăng thực, tạo danh sách bài đăng mẫu dạng Instagram
-        if (userPosts.length === 0) {
-          userPosts = [
-            { id: '1', image: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=400&q=80', title: 'Bãi biển', content: 'Check-in biển xanh' },
-            { id: '2', image: 'https://images.unsplash.com/photo-1465101046530-73398c7f28ca?auto=format&fit=crop&w=400&q=80', title: 'Núi', content: 'Leo núi cuối tuần' },
-            { id: '3', image: 'https://images.unsplash.com/photo-1519125323398-675f0ddb6308?auto=format&fit=crop&w=400&q=80', title: 'Cafe', content: 'Cà phê sáng chill' },
-            { id: '4', image: 'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=400&q=80', title: 'Đêm', content: 'Thành phố về đêm' },
-            { id: '5', image: 'https://images.unsplash.com/photo-1465101178521-c1a9136a3b99?auto=format&fit=crop&w=400&q=80', title: 'Bạn bè', content: 'Đi chơi cùng bạn' },
-            { id: '6', image: 'https://images.unsplash.com/photo-1465101046530-73398c7f28ca?auto=format&fit=crop&w=400&q=80', title: 'Thể thao', content: 'Chạy bộ buổi sáng' },
-          ];
-        }
-        setPosts(userPosts);
-      } catch (e) {
-        Alert.alert('Lỗi', 'Không thể tải thông tin cá nhân.');
-      }
-      setLoading(false);
-    };
-    fetchUserInfo();
-  }, [user]);
-
-  const handleSave = async () => {
-    if (!editName.trim() || !editEmail.trim()) {
-      Alert.alert('Lỗi', 'Tên và email không được để trống.');
-      return;
-    }
+  const handleSave = () => {
+    if (!editName.trim() || !editEmail.trim()) return;
     setSaving(true);
-    try {
-      const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, { name: editName, email: editEmail });
-      setUserInfo((prev) => ({ ...prev, name: editName, email: editEmail }));
+    setTimeout(() => {
+      setUser((prev) => ({
+        ...prev,
+        name: editName,
+        bio: editBio,
+        email: editEmail,
+      }));
       setEditModalVisible(false);
-      Alert.alert('Thành công', 'Cập nhật thông tin thành công!');
-    } catch (e) {
-      Alert.alert('Lỗi', 'Không thể cập nhật thông tin.');
-    }
-    setSaving(false);
+      setSaving(false);
+    }, 1000);
   };
-
-  if (loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#3b82f6" />
-      </View>
-    );
-  }
 
   return (
     <View style={styles.container}>
-      {/* Profile Header Instagram Style */}
+      {/* Header Instagram Style */}
       <View style={styles.intaHeader}>
         <View style={styles.avatarBorder}>
-          <Image
-            source={require('../../assets/images/logo.png')}
-            style={styles.intaAvatar}
-          />
+          <Image source={{ uri: user.avatar }} style={styles.intaAvatar} />
         </View>
         <View style={styles.intaStatsWrap}>
           <View style={styles.intaStatItem}>
@@ -101,20 +59,26 @@ export default function ProfileScreen() {
             <Text style={styles.intaStatLabel}>Bài viết</Text>
           </View>
           <View style={styles.intaStatItem}>
-            <Text style={styles.intaStatNumber}>120</Text>
+            <Text style={styles.intaStatNumber}>{user.followers}</Text>
             <Text style={styles.intaStatLabel}>Người theo dõi</Text>
           </View>
           <View style={styles.intaStatItem}>
-            <Text style={styles.intaStatNumber}>180</Text>
+            <Text style={styles.intaStatNumber}>{user.following}</Text>
             <Text style={styles.intaStatLabel}>Đang theo dõi</Text>
           </View>
         </View>
       </View>
       <View style={styles.intaNameWrap}>
-        <Text style={styles.intaName}>{userInfo?.name || 'No Name'}</Text>
-        <Text style={styles.intaEmail}>{userInfo?.email || 'No Email'}</Text>
+        <Text style={styles.intaName}>{user.name}</Text>
+        <Text style={styles.intaEmail}>{user.email}</Text>
+        <Text style={styles.intaBio}>{user.bio}</Text>
       </View>
-      <TouchableOpacity onPress={() => setEditModalVisible(true)} style={styles.intaEditBtn}>
+      <TouchableOpacity onPress={() => {
+        setEditName(user.name);
+        setEditBio(user.bio);
+        setEditEmail(user.email);
+        setEditModalVisible(true);
+      }} style={styles.intaEditBtn}>
         <MaterialIcons name="edit" size={20} color="#3b82f6" style={{marginRight: 6}} />
         <Text style={styles.intaEditBtnText}>Chỉnh sửa thông tin</Text>
       </TouchableOpacity>
@@ -135,6 +99,7 @@ export default function ProfileScreen() {
           </View>
         )}
         contentContainerStyle={{ paddingBottom: 30 }}
+        style={{ flexGrow: 0 }}
       />
       {/* Edit Modal */}
       <Modal
@@ -159,6 +124,13 @@ export default function ProfileScreen() {
               placeholder="Email"
               keyboardType="email-address"
             />
+            <TextInput
+              style={styles.input}
+              value={editBio}
+              onChangeText={setEditBio}
+              placeholder="Bio"
+              multiline
+            />
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={[styles.saveBtn, saving && { opacity: 0.7 }]}
@@ -180,49 +152,49 @@ export default function ProfileScreen() {
       </Modal>
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f7faff',
-    paddingHorizontal: 0,
-    paddingTop: 0,
+    backgroundColor: '#fff',
   },
   intaHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 8,
     marginTop: 18,
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#e5e7eb',
+    paddingBottom: 18,
   },
   avatarBorder: {
-    width: 98,
-    height: 98,
-    borderRadius: 49,
-    borderWidth: 3,
-    borderColor: '#3b82f6',
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    borderWidth: 2.5,
+    borderColor: '#e1306c',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#fff',
     marginRight: 18,
-    shadowColor: '#3b82f6',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
   },
   intaAvatar: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
+    width: 84,
+    height: 84,
+    borderRadius: 42,
     backgroundColor: '#e0e7ef',
+    borderWidth: 1.5,
+    borderColor: '#fff',
   },
   intaStatsWrap: {
     flex: 1,
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginLeft: 8,
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    marginLeft: 0,
   },
   intaStatItem: {
     alignItems: 'center',
@@ -230,110 +202,91 @@ const styles = StyleSheet.create({
   },
   intaStatNumber: {
     fontWeight: 'bold',
-    fontSize: 20,
+    fontSize: 19,
     color: '#22223b',
+    marginBottom: 1,
   },
   intaStatLabel: {
     color: '#64748b',
     fontSize: 13,
-    marginTop: 2,
+    marginTop: 1,
   },
   intaNameWrap: {
     marginBottom: 8,
-    marginLeft: 24,
+    marginLeft: 16,
+    marginTop: 2,
   },
   intaName: {
     fontWeight: 'bold',
-    fontSize: 19,
+    fontSize: 17,
     color: '#22223b',
-    marginBottom: 2,
+    marginBottom: 1,
   },
   intaEmail: {
     color: '#64748b',
-    fontSize: 15,
+    fontSize: 14,
+    marginBottom: 1,
+  },
+  intaBio: {
+    color: '#22223b',
+    fontSize: 14,
+    marginTop: 2,
+    marginBottom: 8,
+    maxWidth: '92%',
   },
   intaEditBtn: {
     flexDirection: 'row',
     backgroundColor: '#fff',
-    borderRadius: 10,
-    paddingVertical: 12,
+    borderRadius: 8,
+    paddingVertical: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: 24,
-    marginBottom: 16,
+    marginHorizontal: 16,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#e0e7ef',
-    shadowColor: '#3b82f6',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
+    borderColor: '#e5e7eb',
   },
   intaEditBtnText: {
-    color: '#3b82f6',
+    color: '#22223b',
     fontWeight: 'bold',
-    fontSize: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#334155',
-    marginBottom: 10,
-  },
-  noPosts: {
-    color: '#64748b',
-    textAlign: 'center',
-    marginTop: 20,
-  },
-  postCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  postTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#3b82f6',
-    marginBottom: 6,
-  },
-  postContent: {
     fontSize: 15,
-    color: '#334155',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.2)',
+    backgroundColor: 'rgba(0,0,0,0.18)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalContent: {
-    width: '90%',
+    width: '92%',
     backgroundColor: '#fff',
     borderRadius: 16,
-    padding: 24,
+    padding: 22,
     alignItems: 'stretch',
+    shadowColor: '#22223b',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 10,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
-    color: '#334155',
+    color: '#22223b',
     marginBottom: 18,
     textAlign: 'center',
+    letterSpacing: 0.2,
   },
   input: {
     backgroundColor: '#f2f6fc',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
     color: '#334155',
-    marginBottom: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e0e7ef',
   },
   modalActions: {
     flexDirection: 'row',
@@ -341,48 +294,40 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   saveBtn: {
-    backgroundColor: '#3b82f6',
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 30,
+    backgroundColor: '#e1306c',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 28,
     alignItems: 'center',
   },
   saveBtnText: {
     color: '#fff',
     fontWeight: '700',
-    fontSize: 16,
+    fontSize: 15,
   },
   cancelBtn: {
     backgroundColor: '#e0e7ef',
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 30,
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 28,
     alignItems: 'center',
   },
   cancelBtnText: {
     color: '#334155',
     fontWeight: '700',
-    fontSize: 16,
-  },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    fontSize: 15,
   },
   intaPostCard: {
     flex: 1,
     aspectRatio: 1,
     margin: 2,
-    borderRadius: 10,
+    borderRadius: 8,
     overflow: 'hidden',
-    backgroundColor: '#e0e7ef',
+    backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 2,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: '#fff',
   },
   intaPostImage: {
     width: '100%',
@@ -400,6 +345,8 @@ const styles = StyleSheet.create({
   intaPostTitle: {
     color: '#334155',
     fontWeight: 'bold',
-    fontSize: 18,
+    fontSize: 16,
   },
 });
+
+export default ProfileScreen;
